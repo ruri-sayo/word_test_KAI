@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品詞当てクイズ (時間制限付き)</title>
+    <style>
+        /* 基本スタイル (省略) */
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 60px; /* ヘッダーと被らないように */
+            background-color: #f4f4f4;
+        }
+
+        /* --- ヘッダーエリア (スコアと設定ボタン) --- */
+        #header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between; /* 両端揃え */
+            align-items: center;
+            z-index: 100; /* 他の要素より手前に */
+            box-sizing: border-box; /* paddingを含めた幅計算 */
+        }
+        #scoreArea {
+            font-size: 0.9em;
+        }
+        #scoreArea span { margin: 0 5px; }
+        #correctCount { color: green; font-weight: bold; }
+        #incorrectCount { color: red; font-weight: bold; }
+        #settingsButton {
+            background: none;
+            border: none;
+            font-size: 1.5em; /* アイコンサイズ */
+            cursor: pointer;
+            padding: 5px;
+            line-height: 1; /* ボタン高さ調整 */
+        }
+
+        /* --- クイズコンテナ --- */
+        #quizContainer {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+            margin-top: 20px; /* ヘッダー下のマージン */
+            position: relative; /* タイマー表示の基準 */
+        }
+        /* --- タイマー表示 --- */
+        #timerDisplay {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ff7f50; /* コーラル色 */
+            background-color: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            min-width: 40px;
+            text-align: center;
+        }
+        #wordDisplay { /* 既存スタイル調整 */
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 25px;
+            color: #333;
+            padding: 10px 0;
+            border-bottom: 2px solid #eee;
+            margin-top: 30px; /* タイマーと被らないように少し下げる */
+        }
+        #posOptions { /* 既存スタイル流用 */
+            margin-bottom: 25px; display: flex; justify-content: center; flex-wrap: wrap; gap: 15px;
+        }
+        #posOptions label { display: inline-block; cursor: pointer; padding: 8px 15px; border: 1px solid #ccc; border-radius: 20px; transition: background-color 0.3s, border-color 0.3s; }
+        #posOptions input[type="radio"] { display: none; }
+        #posOptions input[type="radio"]:checked + label { background-color: #007bff; color: white; border-color: #007bff; }
+        #posOptions label:hover { background-color: #eee; }
+        #resultDisplay { margin-top: 20px; font-size: 1.2em; min-height: 1.5em; }
+        .correct { color: green; font-weight: bold; }
+        .incorrect { color: red; font-weight: bold; }
+        .timeout { color: orange; font-weight: bold; } /* 時間切れ用 */
+
+        .button-container { margin-top: 20px; display: flex; justify-content: center; gap: 10px; }
+        button { padding: 10px 20px; font-size: 1em; cursor: pointer; border: none; border-radius: 5px; color: white; transition: background-color 0.3s, opacity 0.3s; }
+        #submitButton { background-color: #007bff; }
+        #submitButton:hover { background-color: #0056b3; }
+        #nextButton { background-color: #28a745; display: none; } /* 初期非表示 */
+        #nextButton:hover { background-color: #218838; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; opacity: 0.6; }
+
+        /* --- 設定メニュー (モーダル) --- */
+        #settingsModal {
+            display: none; /* 初期非表示 */
+            position: fixed;
+            z-index: 200; /* 最前面 */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* スクロール可能に */
+            background-color: rgba(0,0,0,0.5); /* 半透明の背景 */
+            justify-content: center; /* 中央揃え */
+            align-items: center; /* 中央揃え */
+        }
+        #settingsMenu {
+            background-color: #fff;
+            padding: 25px 30px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 400px;
+            position: relative;
+            text-align: left;
+        }
+        #settingsMenu h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #333;
+        }
+        .setting-item {
+            margin-bottom: 20px;
+        }
+        .setting-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        #timeLimitSelect {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+        #resetButtonMenu { /* メニュー内のリセットボタン */
+            background-color: #ffc107;
+            color: #333;
+            display: block; /* ブロック要素にして幅を合わせる */
+            width: 100%;
+            margin-bottom: 10px; /* 閉じるボタンとの間隔 */
+        }
+        #resetButtonMenu:hover { background-color: #e0a800; }
+        #closeSettingsButton {
+            background-color: #6c757d; /* 灰色 */
+            display: block;
+            width: 100%;
+        }
+        #closeSettingsButton:hover { background-color: #5a6268; }
+
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div id="scoreArea">
+            <span>正解: <span id="correctCount">0</span></span> |
+            <span>不正解: <span id="incorrectCount">0</span></span>
+        </div>
+        <button id="settingsButton" title="設定">⚙️</button>
+    </div>
+
+    <div id="quizContainer">
+        <div id="timerDisplay">--</div> <div id="wordDisplay">Word</div>
+        <div id="posOptions">
+            <input type="radio" id="noun" name="pos" value="noun"> <label for="noun">名詞 (Noun)</label>
+            <input type="radio" id="verb" name="pos" value="verb"> <label for="verb">動詞 (Verb)</label>
+            <input type="radio" id="adjective" name="pos" value="adjective"> <label for="adjective">形容詞 (Adjective)</label>
+            <input type="radio" id="adverb" name="pos" value="adverb"> <label for="adverb">副詞 (Adverb)</label>
+        </div>
+        <div id="resultDisplay"></div>
+        <div class="button-container">
+            <button id="submitButton">解答</button>
+            <button id="nextButton">次の問題</button>
+            </div>
+    </div>
+
+    <div id="settingsModal">
+        <div id="settingsMenu">
+            <h2>設定</h2>
+            <div class="setting-item">
+                <label for="timeLimitSelect">1問あたりの制限時間:</label>
+                <select id="timeLimitSelect">
+                    <option value="0">無制限</option>
+                    <option value="20">20秒</option>
+                    <option value="15" selected>15秒</option> <option value="10">10秒</option>
+                    <option value="5">5秒</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                 <button id="resetButtonMenu">スコアリセット</button>
+            </div>
+            <button id="closeSettingsButton">閉じる</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
